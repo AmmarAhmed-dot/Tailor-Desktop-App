@@ -96,7 +96,8 @@ const migrateCustomer = (c: any): Customer => {
 const api = window.electronAPI;
 
 function App() {
-  const [lang, setLang] = useState<"ur" | "en">("ur");
+  const [lang, setLang] = useState<"ur" | "en">("en");
+  const [autoBackupTestDone, setAutoBackupTestDone] = useState(false);
   const [activeTab, setActiveTab] = useState<"list" | "add">("list");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -131,11 +132,18 @@ function App() {
           }
         }
       });
+
+      // Check for automatic backup on app launch
+      api.checkAutoBackup().then((res: any) => {
+        if (res.triggered) {
+          console.log("Auto backup created:", res.filePath);
+        }
+      });
     }
   }, []);
 
   const labels = {
-    appTitle: isUrdu ? "درزی شاپ" : "Tailor Shop",
+    appTitle: isUrdu ? "دلکش" : "Dilkash",
     nav_list: isUrdu ? "گاہکوں کی فہرست" : "Customers List",
     nav_add: isUrdu ? "نیا گاہک شامل کریں" : "Add New Customer",
     searchPlaceholder: isUrdu
@@ -186,6 +194,10 @@ function App() {
     },
   };
 
+  // Auto-capitalize first letter after every space
+  const toTitleCase = (str: string): string =>
+    str.replace(/(^|\s)\S/g, (match) => match.toUpperCase());
+
   const handleInput = (
     e: React.ChangeEvent<HTMLInputElement>,
     field: keyof Customer | "search" | "txNote",
@@ -203,10 +215,17 @@ function App() {
       }
     }
 
+    // Apply title-case to name, address and notes (not to phone, search, or number fields)
+    const titleCaseFields: string[] = ["name", "address"];
+    if (!isUrdu && titleCaseFields.includes(field)) {
+      newValue = toTitleCase(newValue);
+    }
+
     if (field === "search") {
       setSearch(newValue);
       keyboardRef.current?.setInput(newValue);
     } else if (field === "txNote") {
+      if (!isUrdu) newValue = toTitleCase(newValue);
       setTxNote(newValue);
       keyboardRef.current?.setInput(newValue);
     } else {
@@ -377,9 +396,13 @@ function App() {
     }
   };
 
-  const filteredCustomers = customers.filter(
-    (c) => c.name.includes(search) || c.phone.includes(search),
-  );
+  const normalizedSearch = search.toLowerCase().replace(/\s/g, "");
+
+  const filteredCustomers = customers.filter((c) => {
+    const nameMatch = c.name.toLowerCase().includes(search.toLowerCase());
+    const phoneMatch = c.phone.replace(/\s/g, "").includes(normalizedSearch);
+    return nameMatch || phoneMatch;
+  });
 
   const urduKeyboardLayout = {
     default: [
@@ -400,12 +423,17 @@ function App() {
 
   return (
     <div
-      className={`flex h-screen bg-gray-50 ${isUrdu ? "font-urdu" : "font-sans"}`}
+      className={`flex h-screen bg-gray-50 ${isUrdu ? "font-urdu" : "font-sans"} relative`}
       dir={isUrdu ? "rtl" : "ltr"}
     >
       {/* Sidebar Navigation */}
       <aside className="w-72 bg-white border-r border-gray-200 flex flex-col shadow-xl z-20">
-        <div className="p-6 bg-indigo-600 text-white shadow-md flex items-center justify-center">
+        <div className="py-3.5 px-6 bg-indigo-600 text-white shadow-md flex items-center justify-center gap-3">
+          <img
+            src="./Dilkash.png"
+            alt="Logo"
+            className="w-13 h-13 object-contain drop-shadow-md"
+          />
           <h1 className="text-2xl font-bold tracking-wide">
             {labels.appTitle}
           </h1>
@@ -483,12 +511,46 @@ function App() {
             >
               {labels.importBtn}
             </button>
+            {/* Test Auto Backup Button - hidden after first use */}
+            {!autoBackupTestDone && (
+              <button
+                onClick={async () => {
+                  if (api) {
+                    const res = await api.forceAutoBackup();
+                    if (res.success) {
+                      setStatusMsg(
+                        isUrdu
+                          ? "خودکار بیک اپ ٹیسٹ کامیاب!"
+                          : "Auto backup test successful!",
+                      );
+                      setTimeout(() => setStatusMsg(""), 3000);
+                    }
+                    setAutoBackupTestDone(true);
+                  }
+                }}
+                className="w-full bg-amber-100 text-amber-700 border border-amber-300 font-bold py-2 px-4 rounded-lg hover:bg-amber-200 transition-all text-sm outline-none cursor-pointer"
+              >
+                {isUrdu ? "خودکار بیک اپ ٹیسٹ" : "Test Auto Backup"}
+              </button>
+            )}
           </div>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-[#f4f7fb] relative">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-white relative">
+        {/* Background Watermark */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center"
+          style={{ opacity: 0.04 }}
+        >
+          <img
+            src="./Dilkash.png"
+            alt=""
+            className="w-[500px] h-[500px] object-contain select-none invert"
+            draggable={false}
+          />
+        </div>
         {/* Top Header */}
         <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-10 shadow-sm z-10">
           <h2 className="text-2xl font-bold text-gray-800">
@@ -520,7 +582,7 @@ function App() {
 
         {/* Scrollable Content */}
         <div
-          className={`flex-1 overflow-y-auto p-10 ${focusedInput && isUrdu ? "pb-64" : ""}`}
+          className={`flex-1 overflow-y-auto p-10 z-10 ${focusedInput && isUrdu ? "pb-64" : ""}`}
         >
           {/* ----- CUSTOMER LIST TAB ----- */}
           {activeTab === "list" && (
@@ -574,7 +636,7 @@ function App() {
                     <div
                       key={cust.id}
                       onClick={() => editCustomer(cust)}
-                      className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-400 transition-all cursor-pointer group flex justify-between items-center outline-none"
+                      className="bg-white p-6 z-10 rounded-3xl bg-white shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-400 transition-all cursor-pointer group flex justify-between items-center outline-none"
                     >
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-gray-900 text-xl group-hover:text-indigo-600 transition-colors">

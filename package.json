@@ -1,5 +1,5 @@
 {
-  "name": "tailor-app",
+  "name": "dilkash-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,8 +14,8 @@
     "package": "npm run build && electron-builder --win --x64"
   },
   "build": {
-    "appId": "com.tailorshop.app",
-    "productName": "Tailor Shop",
+    "appId": "com.dilkash.app",
+    "productName": "Dilkash",
     "directories": {
       "output": "release"
     },
