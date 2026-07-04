@@ -97,7 +97,7 @@ const api = window.electronAPI;
 
 function App() {
   const [lang, setLang] = useState<"ur" | "en">("en");
-  const [autoBackupTestDone, setAutoBackupTestDone] = useState(false);
+
   const [activeTab, setActiveTab] = useState<"list" | "add">("list");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -133,12 +133,21 @@ function App() {
         }
       });
 
-      // Check for automatic backup on app launch
-      api.checkAutoBackup().then((res: any) => {
-        if (res.triggered) {
-          console.log("Auto backup created:", res.filePath);
-        }
-      });
+      // Function to trigger auto backup check
+      const checkBackup = () => {
+        api.checkAutoBackup().then((res: any) => {
+          if (res.triggered) {
+            console.log("Auto backup created:", res.filePath);
+          }
+        });
+      };
+
+      // Check on launch
+      checkBackup();
+
+      // And continuously check every 1 minute while the app is open
+      const intervalId = setInterval(checkBackup, 60 * 1000);
+      return () => clearInterval(intervalId);
     }
   }, []);
 
@@ -511,28 +520,6 @@ function App() {
             >
               {labels.importBtn}
             </button>
-            {/* Test Auto Backup Button - hidden after first use */}
-            {!autoBackupTestDone && (
-              <button
-                onClick={async () => {
-                  if (api) {
-                    const res = await api.forceAutoBackup();
-                    if (res.success) {
-                      setStatusMsg(
-                        isUrdu
-                          ? "خودکار بیک اپ ٹیسٹ کامیاب!"
-                          : "Auto backup test successful!",
-                      );
-                      setTimeout(() => setStatusMsg(""), 3000);
-                    }
-                    setAutoBackupTestDone(true);
-                  }
-                }}
-                className="w-full bg-amber-100 text-amber-700 border border-amber-300 font-bold py-2 px-4 rounded-lg hover:bg-amber-200 transition-all text-sm outline-none cursor-pointer"
-              >
-                {isUrdu ? "خودکار بیک اپ ٹیسٹ" : "Test Auto Backup"}
-              </button>
-            )}
           </div>
         </div>
       </aside>

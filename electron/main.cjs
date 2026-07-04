@@ -55,6 +55,8 @@ function getDateString() {
 let mainWindow;
 
 function createWindow() {
+  const isDev = process.env.NODE_ENV === "development";
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -63,11 +65,16 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
+      devTools: isDev, // Completely disables dev tools in production
     },
   });
 
+  // Remove the default Windows top menu bar in production
+  if (!isDev) {
+    mainWindow.removeMenu();
+  }
+
   // Depending on the environment, load the dev server or the production build
-  const isDev = process.env.NODE_ENV === "development";
   if (isDev) {
     mainWindow.loadURL("http://localhost:5173");
     mainWindow.webContents.openDevTools();
@@ -167,8 +174,7 @@ ipcMain.handle("check-auto-backup", () => {
     const now = new Date();
 
     // If never backed up, or 15+ days have passed
-    // if (!lastBackup || now - lastBackup >= 15 * 24 * 60 * 60 * 1000) {
-    if (!lastBackup || now - lastBackup >= 2 * 60 * 1000) { // 2 minutes for testing
+    if (!lastBackup || now - lastBackup >= 15 * 24 * 60 * 60 * 1000) {
       ensureBackupDir();
       const fileName = `Dilkash_Automatic_Backup_${getDateString()}.json`;
       const filePath = path.join(desktopBackupDir, fileName);
